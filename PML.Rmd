@@ -1,0 +1,117 @@
+Practical Machine Learning Course Project
+=========
+
+By Chen Yan (Jonathan)
+
+March 25th, 2016
+
+# Introduction
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: <http://groupware.les.inf.puc-rio.br/har> (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+
+The training data for this project are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+The data for this project come from this source: <http://groupware.les.inf.puc-rio.br/har>. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+# Getting and Cleaning the Data
+
+## Load packages
+
+```{r}
+library(caret)
+library(rpart)
+library(randomForest)
+set.seed(123)
+```
+
+## Load the Data
+
+```{r, cache=TRUE}
+train_url <-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+test_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+train_file <- "pml-training.csv"
+test_file  <- "pml-testing.csv"
+download.file(train_url, destfile=train_file, method="curl")
+download.file(test_url, destfile=test_file, method="curl")
+train0 <- read.csv("pml-training.csv")
+test0 <- read.csv("pml-testing.csv")
+dim(train0)
+dim(test0)
+```
+
+## Clean the Data
+
+Remove columns with NAs:
+
+```{r, cache=TRUE}
+train0 <- train0[, colSums(is.na(train0)) == 0] 
+test0 <- test0[, colSums(is.na(test0)) == 0] 
+```
+
+Remove the columns related to the time-series, not relavant or are not numeric:
+
+```{r, cache=TRUE}
+train0 <- train0[, grepl("X|user_name|timestamp|window|^max|^min|^ampl|^var|^avg|^stdd|^ske|^kurt", colnames(train0)) == F]
+test0 <- test0[, grepl("X|user_name|timestamp|window|^max|^min|^ampl|^var|^avg|^stdd|^ske|^kurt", colnames(test0)) == F]
+dim(train0)
+dim(test0)
+```
+
+## Divide the Data
+
+Divide the data into a training (70%) set and a validation (30%) set for doing cross validation:
+
+```{r, cache=TRUE}
+inTrain <- createDataPartition(train0$classe, p=0.7, list=FALSE)
+training <- train0[inTrain, ]
+testing <- train0[-inTrain, ]
+```
+
+# Modeling
+
+Use random forest algorithm to fit the data, and use 5-fold cross validation when applying the algorithm.
+
+```{r, cache=TRUE}
+control_Rf <- trainControl(method="cv", 5)
+# Too slow to train in knitr, so I trained the data in the R console and use the model_Rf result in the Global Environment instead. The training method I used is stated below:
+# model_Rf <- train(classe ~ ., data=training, method="rf", trControl=control_Rf, ntree=100)
+model_Rf
+```
+
+Predict this model on validation data:
+
+```{r, cache=TRUE}
+predict_Rf <- predict(model_Rf, testing)
+confusionMatrix(testing$classe, predict_Rf)
+accuracy <- postResample(predict_Rf, testing$classe)
+accuracy
+out_of_sample_error <- 1 - as.numeric(confusionMatrix(predict_Rf, testing$classe)$overall[1])
+out_of_sample_error
+```
+
+So, the accuracy of the model is 99.27% and the out-of-sample error is 0.7307%.
+
+
+# Predicting the Test Data Set
+
+Apply the model to the original testing data set.
+
+```{r, cache=TRUE}
+result <- predict(model_Rf, test0[, -length(names(test0))])
+result
+```
+
+# Conclusion
+
+The result of predicting the 20 different test cases are: B A B A A E D B A A B C B A E E A B B B
+
